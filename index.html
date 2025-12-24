@@ -3,80 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SlideSlice Studio 2.0 - Alta Definição</title>
+    <title>SlideSlice Studio 4.0 - Hybrid AI (Cloud + Local)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <!-- Biblioteca PptxGenJS para gerar o PowerPoint -->
+    
+    <!-- PptxGenJS -->
     <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    
+    <!-- Cropper.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+    <!-- TensorFlow.js & Coco-SSD (IA Local) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
         
-        /* Área do Canvas */
         .workspace-pattern {
             background-color: #1e293b;
             background-image: radial-gradient(#334155 1px, transparent 1px);
             background-size: 20px 20px;
         }
 
-        /* Caixa de Seleção */
+        /* Selection Box */
         .selection-box {
-            position: absolute;
-            border: 2px solid #3b82f6; /* Blue 500 */
-            background-color: rgba(59, 130, 246, 0.1);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-            cursor: pointer;
-            transition: border-color 0.2s, background-color 0.2s;
-            z-index: 10;
+            position: absolute; border: 2px solid #3b82f6;
+            background-color: rgba(59, 130, 246, 0.1); cursor: pointer; z-index: 10;
         }
+        .selection-box:hover { border-color: #60a5fa; background-color: rgba(59, 130, 246, 0.25); z-index: 20; }
+        .selection-box.selected { border-color: #facc15; border-width: 2px; background-color: rgba(250, 204, 21, 0.15); z-index: 30; }
+        
+        /* Cloud Detected Box Style */
+        .selection-box.cloud-detected { border-color: #a855f7; background-color: rgba(168, 85, 247, 0.15); }
+        .selection-box.cloud-detected:hover { border-color: #c084fc; }
+        .selection-box.cloud-detected .box-label { background: #a855f7; }
 
-        .selection-box:hover {
-            border-color: #60a5fa; /* Blue 400 */
-            background-color: rgba(59, 130, 246, 0.25);
-            z-index: 20;
+        /* Lasso SVG */
+        .lasso-path {
+            position: absolute; top: 0; left: 0;
+            fill: rgba(16, 185, 129, 0.1); stroke: #10b981; stroke-width: 2;
+            cursor: pointer; z-index: 10;
         }
+        .lasso-path:hover { fill: rgba(16, 185, 129, 0.25); stroke: #34d399; z-index: 20; }
+        .lasso-path.selected { stroke: #facc15; fill: rgba(250, 204, 21, 0.15); z-index: 30; }
 
-        .selection-box.selected {
-            border-color: #facc15; /* Yellow 400 */
-            border-width: 2px;
-            background-color: rgba(250, 204, 21, 0.15);
-            z-index: 30;
-        }
-
-        /* Etiqueta de número na caixa */
+        /* Labels */
         .box-label {
-            position: absolute;
-            top: -12px;
-            left: -2px;
-            background: #3b82f6;
-            color: white;
-            font-size: 10px;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 4px;
-            pointer-events: none;
+            position: absolute; top: -18px; left: -2px;
+            background: #3b82f6; color: white;
+            font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px;
+            pointer-events: none; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
-        .selection-box.selected .box-label { background: #facc15; color: black; }
-
-        /* Botão de Fechar na caixa */
         .box-close {
-            position: absolute;
-            top: -12px;
-            right: -2px;
-            background: #ef4444;
-            color: white;
-            width: 16px;
-            height: 16px;
-            font-size: 12px;
-            line-height: 14px;
-            text-align: center;
-            border-radius: 50%;
-            cursor: pointer;
-            display: none;
+            position: absolute; top: -12px; right: -2px;
+            background: #ef4444; color: white;
+            width: 16px; height: 16px; font-size: 12px; line-height: 14px;
+            text-align: center; border-radius: 50%; cursor: pointer; display: none; z-index: 40;
         }
-        .selection-box:hover .box-close { display: block; }
+        .selection-box:hover .box-close, .lasso-container:hover .box-close { display: block; }
 
-        /* Scrollbar Fina */
+        .lasso-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .lasso-container path { pointer-events: auto; }
+        
+        .tool-btn.active { background-color: #2563eb; color: white; border-color: #3b82f6; }
+        
+        /* Toast Notification */
+        #toast {
+            visibility: hidden; min-width: 250px; margin-left: -125px;
+            background-color: #333; color: #fff; text-align: center;
+            border-radius: 8px; padding: 16px; position: fixed; z-index: 100;
+            left: 50%; bottom: 30px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #1e293b; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
@@ -85,410 +88,648 @@
 <body class="h-screen flex flex-col overflow-hidden">
 
     <!-- TOPO -->
-    <header class="bg-slate-900 border-b border-slate-700 h-16 flex items-center justify-between px-6 shadow-md z-30">
+    <header class="bg-slate-900 border-b border-slate-700 h-16 flex items-center justify-between px-6 shadow-md z-40 relative">
         <div class="flex items-center gap-3">
-            <div class="bg-blue-600 p-2 rounded-lg">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <div class="bg-gradient-to-br from-purple-600 to-indigo-600 p-2 rounded-lg shadow-lg">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
             </div>
             <div>
-                <h1 class="font-bold text-lg text-white tracking-tight">SlideSlice Studio <span class="text-blue-500">2.0</span></h1>
+                <h1 class="font-bold text-lg text-white tracking-tight">SlideSlice <span class="text-purple-400">4.0 Hybrid</span></h1>
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div id="toolbar" class="hidden flex items-center gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
+            <button onclick="setTool('rect')" id="tool-rect" class="tool-btn active px-3 py-1.5 rounded text-xs font-medium text-slate-300 hover:bg-slate-700 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"></path></svg>
+                Retângulo
+            </button>
+            <button onclick="setTool('lasso')" id="tool-lasso" class="tool-btn px-3 py-1.5 rounded text-xs font-medium text-slate-300 hover:bg-slate-700 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                Livre
+            </button>
+            <div class="w-px h-6 bg-slate-600 mx-1"></div>
+            <button onclick="startCrop()" class="px-3 py-1.5 rounded text-xs font-medium text-slate-300 hover:bg-slate-700 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z"></path></svg>
+                Cortar
+            </button>
+            
+            <div class="w-px h-6 bg-slate-600 mx-1"></div>
+            
+            <!-- Botões de IA -->
+            <div class="flex bg-slate-900 rounded-md p-0.5 border border-slate-700">
+                <button onclick="runLocalAI()" id="btnLocalAI" class="px-3 py-1.5 rounded text-xs font-medium text-blue-300 hover:bg-slate-700 hover:text-white transition flex items-center gap-2">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    Local (Rápido)
+                </button>
+                <button onclick="runCloudAI()" id="btnCloudAI" class="px-3 py-1.5 rounded text-xs font-bold text-purple-300 hover:bg-purple-900/50 hover:text-purple-200 transition flex items-center gap-2 border-l border-slate-700 ml-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                    Nuvem (Ultra)
+                </button>
             </div>
         </div>
 
         <div class="flex items-center gap-4">
-            <div id="imageInfo" class="hidden text-xs text-slate-400 border-r border-slate-700 pr-4">
-                Resolução Original: <span id="resDisplay" class="text-slate-200 font-mono">0x0</span>
-            </div>
-            
             <label class="btn-secondary cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-2 border border-slate-600">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Abrir Imagem
+                Abrir
                 <input type="file" id="fileInput" class="hidden" accept="image/*">
             </label>
 
             <button onclick="exportPPTX()" id="btnExport" disabled class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-md text-sm font-bold shadow-lg shadow-blue-900/40 transition flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                Exportar PPTX
+                Exportar
             </button>
         </div>
     </header>
 
-    <div class="flex flex-1 overflow-hidden">
-        
-        <!-- SIDEBAR (CAMADAS) -->
+    <div class="flex flex-1 overflow-hidden relative">
+        <!-- SIDEBAR -->
         <aside class="w-72 bg-slate-900 border-r border-slate-700 flex flex-col z-20">
             <div class="p-4 border-b border-slate-800">
-                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Elementos (Slices)</h2>
-                <p class="text-[10px] text-slate-500">Cada item será um objeto móvel no PPT.</p>
-            </div>
-
-            <!-- Lista de Camadas -->
-            <div class="flex-1 overflow-y-auto p-2 space-y-2" id="layersList">
-                <div class="text-center mt-10 text-slate-600 text-sm italic px-4">
-                    Abra uma imagem e desenhe retângulos sobre os objetos que deseja soltar.
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Fatias (Slices)</h2>
+                <div class="text-[10px] text-slate-500 flex justify-between">
+                    <span>Objetos detectados</span>
+                    <span id="sliceCount">0</span>
                 </div>
             </div>
 
-            <!-- Opções de Exportação -->
+            <div class="flex-1 overflow-y-auto p-2 space-y-2" id="layersList">
+                <div class="text-center mt-10 text-slate-600 text-sm italic px-4">
+                    Abra uma imagem para começar.
+                </div>
+            </div>
+
             <div class="p-4 bg-slate-800 border-t border-slate-700 space-y-4">
                 <div>
                     <div class="flex justify-between items-center mb-1">
-                        <span class="text-xs font-medium text-slate-300">Opacidade do Fundo</span>
+                        <span class="text-xs font-medium text-slate-300">Opacidade Fundo</span>
                         <span id="opacityVal" class="text-xs text-blue-400">50%</span>
                     </div>
                     <input type="range" id="bgOpacity" min="0" max="100" value="50" class="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer">
-                    <p class="text-[10px] text-slate-500 mt-1">Define quão visível fica a imagem original atrás dos recortes no slide.</p>
                 </div>
-                
-                <button onclick="clearAll()" class="w-full py-2 text-xs text-red-400 hover:text-red-300 border border-slate-700 rounded hover:bg-slate-700 transition">
-                    Limpar Tudo
-                </button>
+                <div class="flex gap-2">
+                    <button onclick="clearAll()" class="flex-1 py-2 text-xs text-red-400 hover:text-red-300 border border-slate-700 rounded hover:bg-slate-700 transition">
+                        Limpar
+                    </button>
+                </div>
+                <!-- Indicador de Status da Key -->
+                <div class="text-[10px] text-slate-600 font-mono text-center border-t border-slate-700 pt-2">
+                    Status API: <span id="keyStatus" class="text-green-500">Pronto (Local)</span>
+                </div>
             </div>
         </aside>
 
-        <!-- ÁREA DE TRABALHO (CANVAS) -->
+        <!-- AREA DE TRABALHO -->
         <main class="flex-1 workspace-pattern relative overflow-auto flex items-center justify-center p-8" id="workspace">
-            
             <!-- Estado Vazio -->
             <div id="emptyState" class="text-center pointer-events-none">
                 <div class="inline-block p-6 rounded-full bg-slate-800/50 border border-slate-700 mb-4 backdrop-blur-sm">
                     <svg class="w-16 h-16 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 </div>
                 <h3 class="text-xl font-medium text-slate-300">Nenhuma Imagem</h3>
-                <p class="text-slate-500 mt-2">Arraste uma imagem ou use o botão "Abrir Imagem".</p>
+                <p class="text-slate-500 mt-2">Arraste ou clique em "Abrir".</p>
+                <div id="aiLoading" class="hidden mt-4 text-xs text-purple-400 animate-pulse">Carregando Modelos...</div>
             </div>
 
-            <!-- Container da Imagem -->
+            <!-- Canvas Container -->
             <div id="canvasContainer" class="hidden relative shadow-2xl shadow-black border border-slate-700 select-none">
-                <!-- Imagem visível (apenas referência visual) -->
                 <img id="sourceImage" class="block max-w-full max-h-[80vh] pointer-events-none" draggable="false">
-                
-                <!-- Camada Interativa (Overlay) -->
-                <div id="overlay" class="absolute inset-0 cursor-crosshair"></div>
+                <div id="overlay" class="absolute inset-0 z-10"></div>
+                <canvas id="drawCanvas" class="absolute inset-0 pointer-events-none z-20"></canvas>
             </div>
-
+            
+            <!-- Modo Cropper -->
+            <div id="cropperContainer" class="hidden fixed inset-0 bg-slate-900 z-50 flex flex-col">
+                <div class="h-14 bg-slate-800 flex items-center justify-between px-6 border-b border-slate-700">
+                    <span class="font-bold text-white">Modo de Recorte</span>
+                    <div class="flex gap-3">
+                        <button onclick="cancelCrop()" class="px-4 py-2 rounded text-sm text-slate-300 hover:bg-slate-700">Cancelar</button>
+                        <button onclick="applyCrop()" class="px-4 py-2 rounded text-sm bg-blue-600 text-white font-bold hover:bg-blue-700">Aplicar</button>
+                    </div>
+                </div>
+                <div class="flex-1 bg-black flex items-center justify-center overflow-hidden p-4">
+                    <img id="cropperImage" class="max-w-full max-h-full">
+                </div>
+            </div>
         </main>
     </div>
 
-    <!-- Canvas Invisível para Processamento HD -->
     <canvas id="processCanvas" class="hidden"></canvas>
+    <div id="toast"></div>
 
     <script>
-        // --- VARIÁVEIS DE ESTADO ---
-        let slices = []; // { id, x, y, w, h } (Valores percentuais 0.0 a 1.0)
+        // --- CONFIGURAÇÃO DE API (ROTAÇÃO) ---
+        // As chaves fornecidas pelo usuário para redundância
+        const API_KEYS = [
+            "AIzaSyDSozD3FEil2rB1tzOgamAbdhXIyYfx-78",
+            "AIzaSyBSMkKaYbBemKMam-hJ_py00gcAKKX2m5I",
+            "AIzaSyDSR6UUU56YjLdLNfjJWUTaRmOpOvEP2ks",
+            "AIzaSyCOD01mnmFE4MY3ZLIwtV9KKR6pXQRRP4k",
+            "AIzaSyCZ08W3asDyHI-HfEDcF2iMhyAkyf7xe3M"
+        ];
+        
+        let currentKeyIndex = 0;
+
+        function getApiKey() {
+            // Retorna a chave atual
+            return API_KEYS[currentKeyIndex];
+        }
+
+        function rotateKey() {
+            // Avança para a próxima chave se a atual falhar
+            currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+            console.log(`Rotacionando para chave de API #${currentKeyIndex + 1} para evitar interrupções.`);
+            updateKeyStatus(`Chave #${currentKeyIndex + 1} Ativa`);
+        }
+
+        // --- ESTADO ---
+        let slices = []; 
+        let currentTool = 'rect';
         let isDrawing = false;
         let startX = 0, startY = 0;
+        let lassoPoints = [];
         let currentBox = null;
-        let imgNaturalWidth = 0;
-        let imgNaturalHeight = 0;
-
-        // --- ELEMENTOS DO DOM ---
-        const fileInput = document.getElementById('fileInput');
+        let cropper = null;
+        let localModel = null;
+        
+        // --- DOM ---
         const sourceImage = document.getElementById('sourceImage');
         const overlay = document.getElementById('overlay');
+        const drawCanvas = document.getElementById('drawCanvas');
+        const drawCtx = drawCanvas.getContext('2d');
         const canvasContainer = document.getElementById('canvasContainer');
         const emptyState = document.getElementById('emptyState');
         const layersList = document.getElementById('layersList');
+        const toolbar = document.getElementById('toolbar');
         const btnExport = document.getElementById('btnExport');
-        const resDisplay = document.getElementById('resDisplay');
-        const imageInfo = document.getElementById('imageInfo');
         const bgOpacityRange = document.getElementById('bgOpacity');
-        const opacityVal = document.getElementById('opacityVal');
+        const keyStatusEl = document.getElementById('keyStatus');
 
-        // --- CONTROLES DE INTERFACE ---
-        bgOpacityRange.addEventListener('input', (e) => {
-            opacityVal.innerText = e.target.value + '%';
+        // --- INICIALIZAÇÃO ---
+        (async function loadLocalAI() {
+            try {
+                document.getElementById('aiLoading').classList.remove('hidden');
+                localModel = await cocoSsd.load();
+                console.log("IA Local Carregada");
+                document.getElementById('aiLoading').classList.add('hidden');
+            } catch(e) {
+                console.warn("Erro IA Local", e);
+            }
+        })();
+
+        // --- ARQUIVOS ---
+        document.getElementById('fileInput').addEventListener('change', e => {
+            if(e.target.files.length) handleFile(e.target.files[0]);
         });
-
-        // --- CARREGAMENTO DE ARQUIVO ---
-        fileInput.addEventListener('change', handleFileSelect);
         
-        // Drag and Drop
-        document.body.addEventListener('dragover', e => e.preventDefault());
-        document.body.addEventListener('drop', e => {
-            e.preventDefault();
-            if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-        });
-
-        function handleFileSelect(e) {
-            if (e.target.files.length) handleFile(e.target.files[0]);
-        }
-
         function handleFile(file) {
-            if (!file.type.startsWith('image/')) return alert('Por favor, envie apenas arquivos de imagem.');
-
             const reader = new FileReader();
             reader.onload = (e) => {
-                sourceImage.onload = () => {
-                    imgNaturalWidth = sourceImage.naturalWidth;
-                    imgNaturalHeight = sourceImage.naturalHeight;
-                    
-                    // UI Updates
-                    resDisplay.innerText = `${imgNaturalWidth} x ${imgNaturalHeight}px`;
-                    imageInfo.classList.remove('hidden');
-                    canvasContainer.classList.remove('hidden');
-                    emptyState.classList.add('hidden');
-                    btnExport.disabled = false;
-                    
-                    clearAll(); // Limpa seleções anteriores
-                };
+                sourceImage.onload = () => { resetApp(); sourceImage.onload = null; };
                 sourceImage.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
 
-        // --- LÓGICA DE DESENHO (MOUSE) ---
-        overlay.addEventListener('mousedown', startDraw);
-        window.addEventListener('mousemove', moveDraw);
-        window.addEventListener('mouseup', endDraw);
+        function resetApp() {
+            canvasContainer.classList.remove('hidden');
+            toolbar.classList.remove('hidden');
+            toolbar.classList.add('flex');
+            emptyState.classList.add('hidden');
+            btnExport.disabled = false;
+            drawCanvas.width = sourceImage.width;
+            drawCanvas.height = sourceImage.height;
+            clearAll();
+        }
 
-        function startDraw(e) {
-            if (e.target.closest('.box-close')) return; // Clicou no fechar
-            
-            isDrawing = true;
+        // --- FERRAMENTAS (MOUSE) ---
+        function setTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`tool-${tool}`).classList.add('active');
+            overlay.style.cursor = tool === 'lasso' ? 'crosshair' : 'default';
+        }
+
+        overlay.addEventListener('mousedown', startAction);
+        window.addEventListener('mousemove', moveAction);
+        window.addEventListener('mouseup', endAction);
+
+        function startAction(e) {
+            if (e.target.closest('.box-close')) return;
             const rect = overlay.getBoundingClientRect();
             startX = e.clientX - rect.left;
             startY = e.clientY - rect.top;
+            isDrawing = true;
 
-            // Criar visual temporário
+            if (currentTool === 'rect') {
+                createTempBox();
+            } else if (currentTool === 'lasso') {
+                lassoPoints = [{x: startX, y: startY}];
+                drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+                drawCtx.beginPath();
+                drawCtx.moveTo(startX, startY);
+                drawCtx.strokeStyle = '#10b981';
+                drawCtx.lineWidth = 2;
+            }
+        }
+
+        function moveAction(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const rect = overlay.getBoundingClientRect();
+            let currX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            let currY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+
+            if (currentTool === 'rect') {
+                updateTempBox(currX, currY);
+            } else if (currentTool === 'lasso') {
+                lassoPoints.push({x: currX, y: currY});
+                drawCtx.lineTo(currX, currY);
+                drawCtx.stroke();
+            }
+        }
+
+        function endAction() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            if (currentTool === 'rect') finalizeRect();
+            else if (currentTool === 'lasso') finalizeLasso();
+        }
+
+        function createTempBox() {
             currentBox = document.createElement('div');
             currentBox.className = 'selection-box pointer-events-none';
-            currentBox.style.left = `${startX}px`;
-            currentBox.style.top = `${startY}px`;
-            currentBox.style.width = '0px';
-            currentBox.style.height = '0px';
+            currentBox.style.left = startX + 'px';
+            currentBox.style.top = startY + 'px';
             overlay.appendChild(currentBox);
         }
 
-        function moveDraw(e) {
-            if (!isDrawing) return;
-            e.preventDefault();
-
-            const rect = overlay.getBoundingClientRect();
-            let currX = e.clientX - rect.left;
-            let currY = e.clientY - rect.top;
-
-            // Limitar à área da imagem
-            currX = Math.max(0, Math.min(currX, rect.width));
-            currY = Math.max(0, Math.min(currY, rect.height));
-
-            const width = currX - startX;
-            const height = currY - startY;
-
-            currentBox.style.width = Math.abs(width) + 'px';
-            currentBox.style.height = Math.abs(height) + 'px';
-            currentBox.style.left = (width < 0 ? currX : startX) + 'px';
-            currentBox.style.top = (height < 0 ? currY : startY) + 'px';
+        function updateTempBox(currX, currY) {
+            const w = currX - startX, h = currY - startY;
+            currentBox.style.width = Math.abs(w) + 'px';
+            currentBox.style.height = Math.abs(h) + 'px';
+            currentBox.style.left = (w < 0 ? currX : startX) + 'px';
+            currentBox.style.top = (h < 0 ? currY : startY) + 'px';
         }
 
-        function endDraw() {
-            if (!isDrawing) return;
-            isDrawing = false;
-
-            // Ignorar caixas muito pequenas (cliques acidentais)
-            const w = parseInt(currentBox.style.width);
-            const h = parseInt(currentBox.style.height);
-
-            if (w < 10 || h < 10) {
-                currentBox.remove();
-                currentBox = null;
-                return;
-            }
-
-            saveSlice();
-        }
-
-        // --- GERENCIAMENTO DE SLICES ---
-        function saveSlice() {
-            const rect = overlay.getBoundingClientRect();
-            const box = currentBox; // A caixa recém criada
+        function finalizeRect() {
+            if (!currentBox) return;
+            const w = parseFloat(currentBox.style.width), h = parseFloat(currentBox.style.height);
+            if (w < 10 || h < 10) { currentBox.remove(); currentBox = null; return; }
             
-            // Converter pixels da tela para porcentagem (0.0 - 1.0)
-            // Isso garante que funcione independente do zoom ou tamanho da tela
-            const xPct = parseFloat(box.style.left) / rect.width;
-            const yPct = parseFloat(box.style.top) / rect.height;
-            const wPct = parseFloat(box.style.width) / rect.width;
-            const hPct = parseFloat(box.style.height) / rect.height;
+            const rect = overlay.getBoundingClientRect();
+            addSlice({
+                type: 'rect',
+                x: parseFloat(currentBox.style.left) / rect.width,
+                y: parseFloat(currentBox.style.top) / rect.height,
+                w: w / rect.width,
+                h: h / rect.height,
+                label: 'Manual'
+            }, currentBox);
+            currentBox = null;
+        }
+
+        function finalizeLasso() {
+            drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+            if (lassoPoints.length < 10) return;
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            lassoPoints.forEach(p => {
+                if(p.x < minX) minX = p.x; if(p.x > maxX) maxX = p.x;
+                if(p.y < minY) minY = p.y; if(p.y > maxY) maxY = p.y;
+            });
+
+            const rect = overlay.getBoundingClientRect();
+            const w = maxX - minX, h = maxY - minY;
+
+            // Criar SVG para visualizar
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("class", "lasso-container");
+            svg.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
+            
+            const path = document.createElementNS(svgNS, "path");
+            path.setAttribute("d", "M " + lassoPoints.map(p => `${p.x},${p.y}`).join(" L ") + " Z");
+            path.setAttribute("class", "lasso-path");
+            svg.appendChild(path);
+            overlay.appendChild(svg);
 
             const id = Date.now();
-            const index = slices.length + 1;
+            const closeBtn = document.createElement('div');
+            closeBtn.className = 'box-close';
+            closeBtn.innerText = '×';
+            closeBtn.style.left = (maxX - 5) + 'px';
+            closeBtn.style.top = (minY - 10) + 'px';
+            closeBtn.onclick = () => removeSlice(id);
+            
+            const btnWrapper = document.createElement('div');
+            btnWrapper.style.position = 'absolute'; 
+            btnWrapper.appendChild(closeBtn);
+            overlay.appendChild(btnWrapper);
 
-            // Transformar em caixa permanente
-            box.classList.remove('pointer-events-none');
-            box.dataset.id = id;
-            
-            // Usar % no estilo para redimensionamento responsivo
-            box.style.left = (xPct * 100) + '%';
-            box.style.top = (yPct * 100) + '%';
-            box.style.width = (wPct * 100) + '%';
-            box.style.height = (hPct * 100) + '%';
+            path.addEventListener('mouseenter', () => closeBtn.style.display = 'block');
+            path.addEventListener('mouseleave', () => setTimeout(() => { if(!closeBtn.matches(':hover')) closeBtn.style.display='none'}, 200));
 
-            // Adicionar UI interna
-            box.innerHTML = `
-                <div class="box-label">#${index}</div>
-                <div class="box-close" onclick="removeSlice(${id})">×</div>
-            `;
+            // Hack para vincular ID
+            svg.dataset.id = id;
+            btnWrapper.dataset.id = id + '_btn';
+
+            addSlice({
+                type: 'lasso',
+                x: minX / rect.width, y: minY / rect.height,
+                w: w / rect.width, h: h / rect.height,
+                points: lassoPoints.map(p => ({x: p.x/rect.width, y: p.y/rect.height})),
+                label: 'Lasso'
+            }, svg, id);
+        }
+
+        // --- INTEGRAÇÃO IA ---
+
+        async function runLocalAI() {
+            if (!localModel) return showToast("IA Local carregando...");
+            const btn = document.getElementById('btnLocalAI');
+            btn.innerHTML = 'Processando...';
+            try {
+                const preds = await localModel.detect(sourceImage);
+                if (!preds.length) showToast("Nenhum objeto encontrado (Local).");
+                processPredictions(preds, 'Local AI');
+            } catch(e) { console.error(e); }
+            btn.innerHTML = `Local (Rápido)`;
+        }
+
+        // --- CLOUD VISION API INTEGRATION ---
+        async function runCloudAI() {
+            const btn = document.getElementById('btnCloudAI');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Enviando para Nuvem...`;
+            btn.disabled = true;
+
+            // Converter imagem para Base64 (sem o header data:image...)
+            const base64Img = sourceImage.src.split(',')[1];
+
+            // Tentar com rotação de chaves (Max 5 tentativas)
+            let success = false;
+            let attempts = 0;
+
+            while (!success && attempts < API_KEYS.length) {
+                const key = getApiKey();
+                updateKeyStatus(`Usando Chave ${currentKeyIndex + 1}...`);
+                
+                try {
+                    const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            requests: [{
+                                image: { content: base64Img },
+                                features: [{ type: "OBJECT_LOCALIZATION", maxResults: 10 }]
+                            }]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Erro API: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.responses && data.responses[0].localizedObjectAnnotations) {
+                        const objects = data.responses[0].localizedObjectAnnotations;
+                        
+                        // Converter formato do Google Cloud para o nosso formato
+                        // Google retorna vertices normalizados (0 a 1)
+                        const convertedPreds = objects.map(obj => {
+                            const vertices = obj.boundingPoly.normalizedVertices;
+                            // Achar min/max x e y
+                            let minX=1, minY=1, maxX=0, maxY=0;
+                            vertices.forEach(v => {
+                                if((v.x||0) < minX) minX = v.x||0;
+                                if((v.x||0) > maxX) maxX = v.x||0;
+                                if((v.y||0) < minY) minY = v.y||0;
+                                if((v.y||0) > maxY) maxY = v.y||0;
+                            });
+                            
+                            // Converter para formato [x, y, w, h] em pixels para o processPredictions usar
+                            const rect = overlay.getBoundingClientRect();
+                            return {
+                                class: obj.name,
+                                bbox: [
+                                    minX * rect.width, // x
+                                    minY * rect.height, // y
+                                    (maxX - minX) * rect.width, // w
+                                    (maxY - minY) * rect.height // h
+                                ],
+                                isCloud: true
+                            };
+                        });
+                        
+                        processPredictions(convertedPreds, 'Google Cloud');
+                        success = true;
+                        showToast(`Sucesso! ${objects.length} objetos via Nuvem.`);
+                    } else {
+                        showToast("A Nuvem não encontrou objetos claros.");
+                        success = true; // Não foi erro de API, só resposta vazia
+                    }
+
+                } catch (err) {
+                    console.warn(`Falha na chave ${currentKeyIndex + 1}:`, err);
+                    rotateKey(); // Tenta a próxima
+                    attempts++;
+                }
+            }
+
+            if (!success) {
+                showToast("Todas as chaves falharam. Tentando IA Local...");
+                runLocalAI(); // Fallback
+            }
+
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            updateKeyStatus("Pronto");
+        }
+
+        function processPredictions(preds, source) {
+            const rect = overlay.getBoundingClientRect();
             
-            // Adicionar ao array de dados
-            slices.push({ id, index, x: xPct, y: yPct, w: wPct, h: hPct });
-            
-            currentBox = null;
-            renderLayerList();
+            // Fator de escala se a imagem renderizada for diferente da natural (só para coco-ssd local)
+            // Para Cloud Vision já convertemos para px do overlay antes
+            const scaleX = source === 'Local AI' ? rect.width / sourceImage.naturalWidth : 1;
+            const scaleY = source === 'Local AI' ? rect.height / sourceImage.naturalHeight : 1;
+
+            preds.forEach(p => {
+                const bx = p.bbox[0] * scaleX;
+                const by = p.bbox[1] * scaleY;
+                const bw = p.bbox[2] * scaleX;
+                const bh = p.bbox[3] * scaleY;
+
+                const box = document.createElement('div');
+                box.className = 'selection-box' + (p.isCloud ? ' cloud-detected' : '');
+                box.style.left = bx + 'px';
+                box.style.top = by + 'px';
+                box.style.width = bw + 'px';
+                box.style.height = bh + 'px';
+                
+                // Label visível
+                const label = document.createElement('div');
+                label.className = 'box-label';
+                label.innerText = `${p.class} (${source})`;
+                box.appendChild(label);
+                
+                overlay.appendChild(box);
+
+                addSlice({
+                    type: 'rect',
+                    x: bx / rect.width,
+                    y: by / rect.height,
+                    w: bw / rect.width,
+                    h: bh / rect.height,
+                    label: p.class
+                }, box);
+            });
+        }
+
+        // --- CROPPER ---
+        function startCrop() {
+            if(!sourceImage.src) return;
+            const container = document.getElementById('cropperContainer');
+            const img = document.getElementById('cropperImage');
+            img.src = sourceImage.src;
+            container.classList.remove('hidden');
+            if(cropper) cropper.destroy();
+            cropper = new Cropper(img, { viewMode: 1, autoCropArea: 0.8 });
+        }
+        function cancelCrop() {
+            document.getElementById('cropperContainer').classList.add('hidden');
+            if(cropper) cropper.destroy();
+        }
+        function applyCrop() {
+            if(!cropper) return;
+            sourceImage.src = cropper.getCroppedCanvas().toDataURL();
+            sourceImage.onload = () => {
+                drawCanvas.width = sourceImage.width;
+                drawCanvas.height = sourceImage.height;
+                clearAll();
+            };
+            cancelCrop();
+        }
+
+        // --- UTILS ---
+        function addSlice(data, el, fid=null) {
+            const id = fid || Date.now();
+            if(el.tagName === 'DIV') {
+                el.dataset.id = id;
+                el.classList.remove('pointer-events-none');
+                if(!el.querySelector('.box-close')) {
+                    el.innerHTML += `<div class="box-close" onclick="removeSlice(${id})">×</div>`;
+                }
+            }
+            slices.push({...data, id, index: slices.length + 1});
+            renderList();
         }
 
         function removeSlice(id) {
             slices = slices.filter(s => s.id !== id);
-            
-            // Remover do DOM
-            const el = overlay.querySelector(`.selection-box[data-id="${id}"]`);
-            if (el) el.remove();
-
-            // Reindexar visualmente
-            slices.forEach((s, i) => {
-                s.index = i + 1;
-                const elBox = overlay.querySelector(`.selection-box[data-id="${s.id}"]`);
-                if(elBox) elBox.querySelector('.box-label').innerText = `#${s.index}`;
-            });
-
-            renderLayerList();
+            const el = overlay.querySelector(`[data-id="${id}"]`); if(el) el.remove();
+            const elBtn = overlay.querySelector(`[data-id="${id}_btn"]`); if(elBtn) elBtn.remove();
+            renderList();
         }
 
         function clearAll() {
-            slices = [];
-            overlay.innerHTML = '';
-            renderLayerList();
+            slices = []; overlay.innerHTML = ''; renderList();
         }
 
-        function renderLayerList() {
-            if (slices.length === 0) {
-                layersList.innerHTML = `<div class="text-center mt-10 text-slate-600 text-sm italic px-4">Abra uma imagem e desenhe retângulos sobre os objetos que deseja soltar.</div>`;
+        function renderList() {
+            document.getElementById('sliceCount').innerText = slices.length;
+            if(!slices.length) {
+                layersList.innerHTML = `<div class="text-center mt-10 text-slate-600 text-sm italic px-4">Selecione áreas ou use a IA.</div>`;
                 return;
             }
-
-            let html = '';
-            // Renderizar em ordem inversa (último criado no topo)
-            [...slices].reverse().forEach(slice => {
-                // Cálculo de dimensões reais para mostrar ao usuário
-                const realW = Math.round(slice.w * imgNaturalWidth);
-                const realH = Math.round(slice.h * imgNaturalHeight);
-
-                html += `
-                    <div class="bg-slate-800 border border-slate-700 p-3 rounded-md flex items-center justify-between group hover:border-blue-500 transition-colors" onmouseenter="highlightBox(${slice.id}, true)" onmouseleave="highlightBox(${slice.id}, false)">
-                        <div class="flex items-center gap-3">
-                            <div class="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-xs font-bold text-white shadow-sm">
-                                ${slice.index}
-                            </div>
-                            <div>
-                                <div class="text-sm font-medium text-slate-200">Recorte #${slice.index}</div>
-                                <div class="text-[10px] text-slate-500 font-mono">${realW} x ${realH} px</div>
-                            </div>
-                        </div>
-                        <button onclick="removeSlice(${slice.id})" class="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-slate-700 transition">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>
+            layersList.innerHTML = [...slices].reverse().map(s => `
+                <div class="bg-slate-800 border border-slate-700 p-3 rounded-md flex justify-between items-center group hover:border-purple-500 transition-colors"
+                     onmouseenter="highlight(${s.id}, true)" onmouseleave="highlight(${s.id}, false)">
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <div class="w-5 h-5 bg-slate-700 rounded flex items-center justify-center text-[10px] font-bold text-white shrink-0">${s.index}</div>
+                        <span class="text-sm text-slate-300 truncate">${s.label}</span>
                     </div>
-                `;
-            });
-            layersList.innerHTML = html;
+                    <button onclick="removeSlice(${s.id})" class="text-slate-500 hover:text-red-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            `).join('');
         }
 
-        function highlightBox(id, active) {
-            const el = overlay.querySelector(`.selection-box[data-id="${id}"]`);
-            if (el) {
-                if (active) el.classList.add('selected');
-                else el.classList.remove('selected');
+        function highlight(id, on) {
+            const el = overlay.querySelector(`[data-id="${id}"]`);
+            if(!el) return;
+            if(el.tagName === 'DIV') {
+                on ? el.classList.add('selected') : el.classList.remove('selected');
+            } else { // SVG
+                const p = el.querySelector('path');
+                if(p) on ? p.classList.add('selected') : p.classList.remove('selected');
             }
         }
 
-        // --- EXPORTAÇÃO PPTX (ENGINE) ---
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.className = 'show'; t.innerText = msg;
+            setTimeout(()=>t.className = t.className.replace('show',''), 3000);
+        }
+
+        function updateKeyStatus(msg) {
+            keyStatusEl.innerText = msg;
+        }
+
+        // --- EXPORTAR PPTX ---
         async function exportPPTX() {
-            if (slices.length === 0) {
-                if(!confirm("Você não selecionou nenhuma parte da imagem. O slide conterá apenas a imagem de fundo. Deseja continuar?")) return;
-            }
-
-            // UI Feedback
-            const originalBtnText = btnExport.innerHTML;
-            btnExport.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Gerando...`;
-            btnExport.disabled = true;
+            if(!slices.length && !confirm("Apenas fundo?")) return;
+            const btn = document.getElementById('btnExport');
+            const oldTxt = btn.innerHTML;
+            btn.innerHTML = 'Gerando...'; btn.disabled = true;
 
             try {
                 const pptx = new PptxGenJS();
-                
-                // 1. Configurar Layout
-                // O layout será baseado nas dimensões da imagem para evitar bordas brancas.
-                // Usaremos uma largura base de 13.33 polegadas (widescreen padrão) e calcularemos a altura proporcional.
-                const baseWidth = 13.33;
-                const ratio = imgNaturalHeight / imgNaturalWidth;
-                const baseHeight = baseWidth * ratio;
+                const imgW = sourceImage.naturalWidth, imgH = sourceImage.naturalHeight;
+                const aspect = imgW / imgH;
+                const pptW = 13.33, pptH = pptW / aspect;
 
-                pptx.defineLayout({ name: 'CUSTOM_IMG', width: baseWidth, height: baseHeight });
-                pptx.layout = 'CUSTOM_IMG';
-
+                pptx.defineLayout({ name:'CUST', width: pptW, height: pptH });
+                pptx.layout = 'CUST';
                 const slide = pptx.addSlide();
 
-                // 2. Adicionar Fundo
-                // Adicionamos a imagem inteira no fundo. 
-                const opacity = parseInt(bgOpacityRange.value); // 0 a 100
-                // Transparência no PptxGenJS: 0 (visível) a 100 (invisível).
-                // Nossa UI: 100% (visível) a 0% (invisível). Invertemos.
-                // Se o usuário quer 100% de opacidade, transparência é 0.
-                const pptTransparency = 100 - opacity;
+                // Fundo
+                slide.addImage({ data: sourceImage.src, x:0, y:0, w:'100%', h:'100%', transparency: 100 - bgOpacityRange.value });
 
-                slide.addImage({
-                    data: sourceImage.src,
-                    x: 0,
-                    y: 0,
-                    w: '100%',
-                    h: '100%',
-                    transparency: pptTransparency
-                });
-
-                // 3. Processar e Adicionar Recortes
+                // Slices
                 const canvas = document.getElementById('processCanvas');
                 const ctx = canvas.getContext('2d');
 
-                // Para cada slice...
-                for (const slice of slices) {
-                    // Calcular pixels reais baseados na imagem original (Alta Qualidade)
-                    const sX = slice.x * imgNaturalWidth;
-                    const sY = slice.y * imgNaturalHeight;
-                    const sW = slice.w * imgNaturalWidth;
-                    const sH = slice.h * imgNaturalHeight;
+                for(const s of slices) {
+                    const sX = s.x * imgW, sY = s.y * imgH, sW = s.w * imgW, sH = s.h * imgH;
+                    canvas.width = sW; canvas.height = sH;
+                    ctx.clearRect(0,0,sW,sH);
 
-                    // Ajustar canvas para o tamanho do recorte
-                    canvas.width = sW;
-                    canvas.height = sH;
-
-                    // Desenhar apenas a região selecionada
-                    ctx.drawImage(
-                        sourceImage,
-                        sX, sY, sW, sH, // Source (x,y,w,h)
-                        0, 0, sW, sH    // Destination (x,y,w,h)
-                    );
-
-                    const sliceData = canvas.toDataURL('image/png');
-
-                    // Adicionar ao slide na posição exata
-                    // Multiplicamos a porcentagem (slice.x) pelo tamanho do slide em polegadas
+                    if(s.type === 'rect') {
+                        ctx.drawImage(sourceImage, sX, sY, sW, sH, 0, 0, sW, sH);
+                    } else {
+                        ctx.save();
+                        ctx.beginPath();
+                        s.points.forEach((p,i) => {
+                            const lx = (p.x * imgW) - sX, ly = (p.y * imgH) - sY;
+                            i===0 ? ctx.moveTo(lx,ly) : ctx.lineTo(lx,ly);
+                        });
+                        ctx.closePath(); ctx.clip();
+                        ctx.drawImage(sourceImage, -sX, -sY, imgW, imgH);
+                        ctx.restore();
+                    }
+                    
                     slide.addImage({
-                        data: sliceData,
-                        x: slice.x * baseWidth,
-                        y: slice.y * baseHeight,
-                        w: slice.w * baseWidth,
-                        h: slice.h * baseHeight
+                        data: canvas.toDataURL('image/png'),
+                        x: s.x * pptW, y: s.y * pptH,
+                        w: s.w * pptW, h: s.h * pptH
                     });
                 }
-
-                // 4. Salvar
-                await pptx.writeFile({ fileName: 'SlideSlice_Projeto.pptx' });
-
-            } catch (err) {
-                console.error(err);
-                alert("Erro ao gerar PowerPoint. Verifique o console.");
-            } finally {
-                btnExport.innerHTML = originalBtnText;
-                btnExport.disabled = false;
-            }
+                await pptx.writeFile({ fileName: 'SlideSlice_V4.pptx' });
+            } catch(e) { console.error(e); alert('Erro na exportação'); }
+            btn.innerHTML = oldTxt; btn.disabled = false;
         }
     </script>
 </body>
