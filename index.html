@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SlideSlice Studio 2.0 - Alta Definição</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Biblioteca PptxGenJS para gerar o PowerPoint -->
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        
+        /* Área do Canvas */
+        .workspace-pattern {
+            background-color: #1e293b;
+            background-image: radial-gradient(#334155 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* Caixa de Seleção */
+        .selection-box {
+            position: absolute;
+            border: 2px solid #3b82f6; /* Blue 500 */
+            background-color: rgba(59, 130, 246, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+            z-index: 10;
+        }
+
+        .selection-box:hover {
+            border-color: #60a5fa; /* Blue 400 */
+            background-color: rgba(59, 130, 246, 0.25);
+            z-index: 20;
+        }
+
+        .selection-box.selected {
+            border-color: #facc15; /* Yellow 400 */
+            border-width: 2px;
+            background-color: rgba(250, 204, 21, 0.15);
+            z-index: 30;
+        }
+
+        /* Etiqueta de número na caixa */
+        .box-label {
+            position: absolute;
+            top: -12px;
+            left: -2px;
+            background: #3b82f6;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .selection-box.selected .box-label { background: #facc15; color: black; }
+
+        /* Botão de Fechar na caixa */
+        .box-close {
+            position: absolute;
+            top: -12px;
+            right: -2px;
+            background: #ef4444;
+            color: white;
+            width: 16px;
+            height: 16px;
+            font-size: 12px;
+            line-height: 14px;
+            text-align: center;
+            border-radius: 50%;
+            cursor: pointer;
+            display: none;
+        }
+        .selection-box:hover .box-close { display: block; }
+
+        /* Scrollbar Fina */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- TOPO -->
+    <header class="bg-slate-900 border-b border-slate-700 h-16 flex items-center justify-between px-6 shadow-md z-30">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-lg">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg text-white tracking-tight">SlideSlice Studio <span class="text-blue-500">2.0</span></h1>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div id="imageInfo" class="hidden text-xs text-slate-400 border-r border-slate-700 pr-4">
+                Resolução Original: <span id="resDisplay" class="text-slate-200 font-mono">0x0</span>
+            </div>
+            
+            <label class="btn-secondary cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-2 border border-slate-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Abrir Imagem
+                <input type="file" id="fileInput" class="hidden" accept="image/*">
+            </label>
+
+            <button onclick="exportPPTX()" id="btnExport" disabled class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-md text-sm font-bold shadow-lg shadow-blue-900/40 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Exportar PPTX
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        
+        <!-- SIDEBAR (CAMADAS) -->
+        <aside class="w-72 bg-slate-900 border-r border-slate-700 flex flex-col z-20">
+            <div class="p-4 border-b border-slate-800">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Elementos (Slices)</h2>
+                <p class="text-[10px] text-slate-500">Cada item será um objeto móvel no PPT.</p>
+            </div>
+
+            <!-- Lista de Camadas -->
+            <div class="flex-1 overflow-y-auto p-2 space-y-2" id="layersList">
+                <div class="text-center mt-10 text-slate-600 text-sm italic px-4">
+                    Abra uma imagem e desenhe retângulos sobre os objetos que deseja soltar.
+                </div>
+            </div>
+
+            <!-- Opções de Exportação -->
+            <div class="p-4 bg-slate-800 border-t border-slate-700 space-y-4">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-medium text-slate-300">Opacidade do Fundo</span>
+                        <span id="opacityVal" class="text-xs text-blue-400">50%</span>
+                    </div>
+                    <input type="range" id="bgOpacity" min="0" max="100" value="50" class="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer">
+                    <p class="text-[10px] text-slate-500 mt-1">Define quão visível fica a imagem original atrás dos recortes no slide.</p>
+                </div>
+                
+                <button onclick="clearAll()" class="w-full py-2 text-xs text-red-400 hover:text-red-300 border border-slate-700 rounded hover:bg-slate-700 transition">
+                    Limpar Tudo
+                </button>
+            </div>
+        </aside>
+
+        <!-- ÁREA DE TRABALHO (CANVAS) -->
+        <main class="flex-1 workspace-pattern relative overflow-auto flex items-center justify-center p-8" id="workspace">
+            
+            <!-- Estado Vazio -->
+            <div id="emptyState" class="text-center pointer-events-none">
+                <div class="inline-block p-6 rounded-full bg-slate-800/50 border border-slate-700 mb-4 backdrop-blur-sm">
+                    <svg class="w-16 h-16 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                </div>
+                <h3 class="text-xl font-medium text-slate-300">Nenhuma Imagem</h3>
+                <p class="text-slate-500 mt-2">Arraste uma imagem ou use o botão "Abrir Imagem".</p>
+            </div>
+
+            <!-- Container da Imagem -->
+            <div id="canvasContainer" class="hidden relative shadow-2xl shadow-black border border-slate-700 select-none">
+                <!-- Imagem visível (apenas referência visual) -->
+                <img id="sourceImage" class="block max-w-full max-h-[80vh] pointer-events-none" draggable="false">
+                
+                <!-- Camada Interativa (Overlay) -->
+                <div id="overlay" class="absolute inset-0 cursor-crosshair"></div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Canvas Invisível para Processamento HD -->
+    <canvas id="processCanvas" class="hidden"></canvas>
+
+    <script>
+        // --- VARIÁVEIS DE ESTADO ---
+        let slices = []; // { id, x, y, w, h } (Valores percentuais 0.0 a 1.0)
+        let isDrawing = false;
+        let startX = 0, startY = 0;
+        let currentBox = null;
+        let imgNaturalWidth = 0;
+        let imgNaturalHeight = 0;
+
+        // --- ELEMENTOS DO DOM ---
+        const fileInput = document.getElementById('fileInput');
+        const sourceImage = document.getElementById('sourceImage');
+        const overlay = document.getElementById('overlay');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const emptyState = document.getElementById('emptyState');
+        const layersList = document.getElementById('layersList');
+        const btnExport = document.getElementById('btnExport');
+        const resDisplay = document.getElementById('resDisplay');
+        const imageInfo = document.getElementById('imageInfo');
+        const bgOpacityRange = document.getElementById('bgOpacity');
+        const opacityVal = document.getElementById('opacityVal');
+
+        // --- CONTROLES DE INTERFACE ---
+        bgOpacityRange.addEventListener('input', (e) => {
+            opacityVal.innerText = e.target.value + '%';
+        });
+
+        // --- CARREGAMENTO DE ARQUIVO ---
+        fileInput.addEventListener('change', handleFileSelect);
+        
+        // Drag and Drop
+        document.body.addEventListener('dragover', e => e.preventDefault());
+        document.body.addEventListener('drop', e => {
+            e.preventDefault();
+            if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFileSelect(e) {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        }
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) return alert('Por favor, envie apenas arquivos de imagem.');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                sourceImage.onload = () => {
+                    imgNaturalWidth = sourceImage.naturalWidth;
+                    imgNaturalHeight = sourceImage.naturalHeight;
+                    
+                    // UI Updates
+                    resDisplay.innerText = `${imgNaturalWidth} x ${imgNaturalHeight}px`;
+                    imageInfo.classList.remove('hidden');
+                    canvasContainer.classList.remove('hidden');
+                    emptyState.classList.add('hidden');
+                    btnExport.disabled = false;
+                    
+                    clearAll(); // Limpa seleções anteriores
+                };
+                sourceImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- LÓGICA DE DESENHO (MOUSE) ---
+        overlay.addEventListener('mousedown', startDraw);
+        window.addEventListener('mousemove', moveDraw);
+        window.addEventListener('mouseup', endDraw);
+
+        function startDraw(e) {
+            if (e.target.closest('.box-close')) return; // Clicou no fechar
+            
+            isDrawing = true;
+            const rect = overlay.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+
+            // Criar visual temporário
+            currentBox = document.createElement('div');
+            currentBox.className = 'selection-box pointer-events-none';
+            currentBox.style.left = `${startX}px`;
+            currentBox.style.top = `${startY}px`;
+            currentBox.style.width = '0px';
+            currentBox.style.height = '0px';
+            overlay.appendChild(currentBox);
+        }
+
+        function moveDraw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+
+            const rect = overlay.getBoundingClientRect();
+            let currX = e.clientX - rect.left;
+            let currY = e.clientY - rect.top;
+
+            // Limitar à área da imagem
+            currX = Math.max(0, Math.min(currX, rect.width));
+            currY = Math.max(0, Math.min(currY, rect.height));
+
+            const width = currX - startX;
+            const height = currY - startY;
+
+            currentBox.style.width = Math.abs(width) + 'px';
+            currentBox.style.height = Math.abs(height) + 'px';
+            currentBox.style.left = (width < 0 ? currX : startX) + 'px';
+            currentBox.style.top = (height < 0 ? currY : startY) + 'px';
+        }
+
+        function endDraw() {
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            // Ignorar caixas muito pequenas (cliques acidentais)
+            const w = parseInt(currentBox.style.width);
+            const h = parseInt(currentBox.style.height);
+
+            if (w < 10 || h < 10) {
+                currentBox.remove();
+                currentBox = null;
+                return;
+            }
+
+            saveSlice();
+        }
+
+        // --- GERENCIAMENTO DE SLICES ---
+        function saveSlice() {
+            const rect = overlay.getBoundingClientRect();
+            const box = currentBox; // A caixa recém criada
+            
+            // Converter pixels da tela para porcentagem (0.0 - 1.0)
+            // Isso garante que funcione independente do zoom ou tamanho da tela
+            const xPct = parseFloat(box.style.left) / rect.width;
+            const yPct = parseFloat(box.style.top) / rect.height;
+            const wPct = parseFloat(box.style.width) / rect.width;
+            const hPct = parseFloat(box.style.height) / rect.height;
+
+            const id = Date.now();
+            const index = slices.length + 1;
+
+            // Transformar em caixa permanente
+            box.classList.remove('pointer-events-none');
+            box.dataset.id = id;
+            
+            // Usar % no estilo para redimensionamento responsivo
+            box.style.left = (xPct * 100) + '%';
+            box.style.top = (yPct * 100) + '%';
+            box.style.width = (wPct * 100) + '%';
+            box.style.height = (hPct * 100) + '%';
+
+            // Adicionar UI interna
+            box.innerHTML = `
+                <div class="box-label">#${index}</div>
+                <div class="box-close" onclick="removeSlice(${id})">×</div>
+            `;
+            
+            // Adicionar ao array de dados
+            slices.push({ id, index, x: xPct, y: yPct, w: wPct, h: hPct });
+            
+            currentBox = null;
+            renderLayerList();
+        }
+
+        function removeSlice(id) {
+            slices = slices.filter(s => s.id !== id);
+            
+            // Remover do DOM
+            const el = overlay.querySelector(`.selection-box[data-id="${id}"]`);
+            if (el) el.remove();
+
+            // Reindexar visualmente
+            slices.forEach((s, i) => {
+                s.index = i + 1;
+                const elBox = overlay.querySelector(`.selection-box[data-id="${s.id}"]`);
+                if(elBox) elBox.querySelector('.box-label').innerText = `#${s.index}`;
+            });
+
+            renderLayerList();
+        }
+
+        function clearAll() {
+            slices = [];
+            overlay.innerHTML = '';
+            renderLayerList();
+        }
+
+        function renderLayerList() {
+            if (slices.length === 0) {
+                layersList.innerHTML = `<div class="text-center mt-10 text-slate-600 text-sm italic px-4">Abra uma imagem e desenhe retângulos sobre os objetos que deseja soltar.</div>`;
+                return;
+            }
+
+            let html = '';
+            // Renderizar em ordem inversa (último criado no topo)
+            [...slices].reverse().forEach(slice => {
+                // Cálculo de dimensões reais para mostrar ao usuário
+                const realW = Math.round(slice.w * imgNaturalWidth);
+                const realH = Math.round(slice.h * imgNaturalHeight);
+
+                html += `
+                    <div class="bg-slate-800 border border-slate-700 p-3 rounded-md flex items-center justify-between group hover:border-blue-500 transition-colors" onmouseenter="highlightBox(${slice.id}, true)" onmouseleave="highlightBox(${slice.id}, false)">
+                        <div class="flex items-center gap-3">
+                            <div class="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-xs font-bold text-white shadow-sm">
+                                ${slice.index}
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-slate-200">Recorte #${slice.index}</div>
+                                <div class="text-[10px] text-slate-500 font-mono">${realW} x ${realH} px</div>
+                            </div>
+                        </div>
+                        <button onclick="removeSlice(${slice.id})" class="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-slate-700 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+            });
+            layersList.innerHTML = html;
+        }
+
+        function highlightBox(id, active) {
+            const el = overlay.querySelector(`.selection-box[data-id="${id}"]`);
+            if (el) {
+                if (active) el.classList.add('selected');
+                else el.classList.remove('selected');
+            }
+        }
+
+        // --- EXPORTAÇÃO PPTX (ENGINE) ---
+        async function exportPPTX() {
+            if (slices.length === 0) {
+                if(!confirm("Você não selecionou nenhuma parte da imagem. O slide conterá apenas a imagem de fundo. Deseja continuar?")) return;
+            }
+
+            // UI Feedback
+            const originalBtnText = btnExport.innerHTML;
+            btnExport.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Gerando...`;
+            btnExport.disabled = true;
+
+            try {
+                const pptx = new PptxGenJS();
+                
+                // 1. Configurar Layout
+                // O layout será baseado nas dimensões da imagem para evitar bordas brancas.
+                // Usaremos uma largura base de 13.33 polegadas (widescreen padrão) e calcularemos a altura proporcional.
+                const baseWidth = 13.33;
+                const ratio = imgNaturalHeight / imgNaturalWidth;
+                const baseHeight = baseWidth * ratio;
+
+                pptx.defineLayout({ name: 'CUSTOM_IMG', width: baseWidth, height: baseHeight });
+                pptx.layout = 'CUSTOM_IMG';
+
+                const slide = pptx.addSlide();
+
+                // 2. Adicionar Fundo
+                // Adicionamos a imagem inteira no fundo. 
+                const opacity = parseInt(bgOpacityRange.value); // 0 a 100
+                // Transparência no PptxGenJS: 0 (visível) a 100 (invisível).
+                // Nossa UI: 100% (visível) a 0% (invisível). Invertemos.
+                // Se o usuário quer 100% de opacidade, transparência é 0.
+                const pptTransparency = 100 - opacity;
+
+                slide.addImage({
+                    data: sourceImage.src,
+                    x: 0,
+                    y: 0,
+                    w: '100%',
+                    h: '100%',
+                    transparency: pptTransparency
+                });
+
+                // 3. Processar e Adicionar Recortes
+                const canvas = document.getElementById('processCanvas');
+                const ctx = canvas.getContext('2d');
+
+                // Para cada slice...
+                for (const slice of slices) {
+                    // Calcular pixels reais baseados na imagem original (Alta Qualidade)
+                    const sX = slice.x * imgNaturalWidth;
+                    const sY = slice.y * imgNaturalHeight;
+                    const sW = slice.w * imgNaturalWidth;
+                    const sH = slice.h * imgNaturalHeight;
+
+                    // Ajustar canvas para o tamanho do recorte
+                    canvas.width = sW;
+                    canvas.height = sH;
+
+                    // Desenhar apenas a região selecionada
+                    ctx.drawImage(
+                        sourceImage,
+                        sX, sY, sW, sH, // Source (x,y,w,h)
+                        0, 0, sW, sH    // Destination (x,y,w,h)
+                    );
+
+                    const sliceData = canvas.toDataURL('image/png');
+
+                    // Adicionar ao slide na posição exata
+                    // Multiplicamos a porcentagem (slice.x) pelo tamanho do slide em polegadas
+                    slide.addImage({
+                        data: sliceData,
+                        x: slice.x * baseWidth,
+                        y: slice.y * baseHeight,
+                        w: slice.w * baseWidth,
+                        h: slice.h * baseHeight
+                    });
+                }
+
+                // 4. Salvar
+                await pptx.writeFile({ fileName: 'SlideSlice_Projeto.pptx' });
+
+            } catch (err) {
+                console.error(err);
+                alert("Erro ao gerar PowerPoint. Verifique o console.");
+            } finally {
+                btnExport.innerHTML = originalBtnText;
+                btnExport.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
